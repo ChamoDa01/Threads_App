@@ -3,34 +3,46 @@
 import { revalidatePath } from "next/cache";
 import Thread from "../models/thread.model";
 import User from "../models/user.model";
+import Community from "../models/community.model";
 import { connectToDB } from "../mongoose";
-import path from "path";
 
 interface Params {
     text: string,
     author: string,
-    communityId: string,
+    communityId: string | null,
     path: string,
 }
 
 export async function createThread({ text, author, communityId, path }: Params) {
     try {
         connectToDB();
-        const createThread = await Thread.create({
+
+        const communityIdObject = await Community.findOne(
+            { id: communityId },
+            { _id: 1 }
+        );
+
+        const createdThread = await Thread.create({
             text,
             author,
-            community: null,
-            path,
+            community: communityIdObject, // Assign communityId if provided, or leave it null for personal account
         });
 
-        // update user model
+        // Update User model
         await User.findByIdAndUpdate(author, {
-            $push: { threads: createThread._id },
+            $push: { threads: createdThread._id },
         });
+
+        if (communityIdObject) {
+            // Update Community model
+            await Community.findByIdAndUpdate(communityIdObject, {
+                $push: { threads: createdThread._id },
+            });
+        }
 
         revalidatePath(path);
     } catch (error: any) {
-        throw new Error(`Error creating thread: ${error.message}`);
+        throw new Error(`Failed to create thread: ${error.message}`);
     }
 }
 
@@ -104,9 +116,9 @@ export async function addCommentToThread(
     path: string,
 ) {
     connectToDB();
-    try{
+    try {
         const originalThread = await Thread.findById(threadId);
-        if(!originalThread) {
+        if (!originalThread) {
             throw new Error("Thread not found");
         }
 
@@ -115,14 +127,14 @@ export async function addCommentToThread(
             author: userId,
             parentId: threadId
         });
-        
+
         const savedCommentThread = await commentThread.save();
 
         originalThread.children.push(savedCommentThread._id);
         await originalThread.save();
 
         revalidatePath(path);
-    } catch(error: any) {
+    } catch (error: any) {
         throw new Error(`Error adding comment to thread: ${error.message}`);
     }
 
