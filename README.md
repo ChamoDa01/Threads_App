@@ -30,7 +30,7 @@ Ensure you have the following installed:
 ### Setup
 1. Clone the repo:
    ```bash
-   git clone 
+   git clone https://github.com/ChamoDa01/Threads_App.git
    cd threads
    ```
 2. Install dependencies:
